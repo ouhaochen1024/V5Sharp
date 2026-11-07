@@ -43,9 +43,36 @@ public class GlassForm : Form
     private int _hoverButton = -1;
     private bool _hoverAction;
 
-    /// <summary>左上角 "V5" 标识用的字重：缓存，避免每次 OnPaint 都 new Font 泄漏 GDI 对象</summary>
+    /// <summary>左上角标识的字重：仅在内嵌图标取不到时兜底，缓存避免每帧 new Font 泄漏</summary>
     private static Font? _brandFont;
     private static Font BrandFont => _brandFont ??= new Font(Theme.FontUI.FontFamily, 8f, FontStyle.Bold);
+
+    /// <summary>按目标像素尺寸缓存的应用图标帧，避免每帧解码 ico</summary>
+    private static readonly Dictionary<int, Image?> _brandIcons = new();
+
+    /// <summary>
+    /// 取指定像素尺寸的图标帧。ico 里本来就有 16/20/24/32/40/48/64/128/256 各帧，
+    /// 按目标尺寸挑对应的那一帧，绘制时就是 1:1，不会因为缩放发糊。
+    /// </summary>
+    private static Image? BrandIcon(int px)
+    {
+        if (_brandIcons.TryGetValue(px, out var cached)) return cached;
+
+        Image? img = null;
+        try
+        {
+            using Stream? s = typeof(GlassForm).Assembly.GetManifestResourceStream("app.ico");
+            if (s is not null)
+            {
+                using var ico = new Icon(s, new Size(px, px));
+                img = ico.ToBitmap();
+            }
+        }
+        catch { /* 取不到就退回纯色方块 */ }
+
+        _brandIcons[px] = img;
+        return img;
+    }
 
     private string _titleText = "V5Sharp";
 
@@ -185,13 +212,32 @@ public class GlassForm : Form
         g.Restore(state);
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        // 标题栏与应用标识
-        var mark = new Rectangle(S(20), (TitleBarHeight - S(26)) / 2, S(26), S(26));
-        using (var p = Theme.RoundRect(mark, S(7)))
-        using (var b = new SolidBrush(Theme.Accent))
-            g.FillPath(b, p);
-        Theme.DrawText(g, "V5", BrandFont, Color.White,
-                       mark, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        // 标题栏与应用标识：直接用程序图标，和 exe / 任务栏保持同一张
+        int markSize = S(32);
+        var mark = new Rectangle(S(20), (TitleBarHeight - markSize) / 2, markSize, markSize);
+        var icon = BrandIcon(markSize);
+        if (icon is not null)
+        {
+            if (icon.Width == mark.Width && icon.Height == mark.Height)
+            {
+                g.DrawImageUnscaled(icon, mark.Location);
+            }
+            else
+            {
+                var oldMode = g.InterpolationMode;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.DrawImage(icon, mark);
+                g.InterpolationMode = oldMode;
+            }
+        }
+        else
+        {
+            using (var p = Theme.RoundRect(mark, S(8)))
+            using (var b = new SolidBrush(Theme.Accent))
+                g.FillPath(b, p);
+            Theme.DrawText(g, "V5", BrandFont, Color.White,
+                           mark, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
 
         int textX = mark.Right + S(10);
         int titleW = Math.Max(S(40), Width - textX - S(220));
