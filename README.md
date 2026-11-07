@@ -96,6 +96,47 @@ dotnet build tools\V5Sharp.Cli -c Release
 tools\V5Sharp.Cli\bin\Release\net8.0-windows\V5Sharp.Cli.exe launch --exe "D:\App\App.exe" --count 3
 ```
 
+### 打包发布（免安装版）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build\publish.ps1
+# → dist\release\V5Sharp-<版本>-win-x64.zip
+```
+
+产物是**自带运行时**的：`V5多开器Pro.exe` 用 `PublishSingleFile + SelfContained`
+打成单文件，内含 .NET 8 运行时和 MiSans 字体，用户机器上不需要装 .NET，解压双击即可。
+包内结构：
+
+```
+V5Sharp\
+├─ V5多开器Pro.exe     自包含单文件（约 160 MB）
+├─ payload\            注入模块，必须和 exe 放在一起
+│   ├─ V5Hook32.dll
+│   ├─ V5Hook64.dll
+│   └─ V5Inject32.exe
+├─ README.md
+└─ v5sharp.ini         默认配置，首次运行会写回这里
+```
+
+`payload\` 之所以不塞进 exe：32 位目标要靠 `V5Inject32.exe` 以调试方式创建进程、
+再用 `LoadLibrary` 加载 `V5Hook32.dll`，两者都必须以真实文件存在；单文件把内容解到临时目录后，
+注入路径和目标进程的位数、权限都对不上。宿主 exe 本身已经是单文件，够了。
+
+脚本刻意没开 `EnableCompressionInSingleFile`：外层已经是 zip，内层再压一遍只会让每次启动
+多一次"80 MB 解压到内存"，而下载体积几乎不变（实测两种设置 zip 都是 74 MB）。
+
+### 自动发版
+
+`.github/workflows/release.yml` 监听 `v*` 标签：GitHub Actions 在 `windows-latest` 上
+编译原生 payload、打包、上传产物，并用 `gh release create` 建 Release 挂上 zip。
+版本号从 tag 推导（`v1.1.0` → `1.1.0`），所以发版只需要：
+
+```powershell
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+
 ---
 
 ## 使用

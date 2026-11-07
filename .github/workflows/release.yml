@@ -1,0 +1,50 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # 编译原生 payload（runner 自带 VS2022 + C++ 生成工具）+ 自包含单文件发布 + 打 zip
+      - name: 构建并打包
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $ver = $env:GITHUB_REF_NAME -replace '^v', ''
+            ./build/publish.ps1 -Version $ver
+          } else {
+            ./build/publish.ps1
+          }
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: V5Sharp-win-x64
+          path: dist/release/*.zip
+          if-no-files-found: error
+
+      # 推 v* tag 时自动建 release 并挂上 zip
+      - name: 发布到 GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = (Get-ChildItem dist/release/*.zip | Select-Object -First 1).FullName
+          if (-not $zip) { throw '没找到 zip' }
+          gh release create $tag $zip --title "V5Sharp $tag" --generate-notes
