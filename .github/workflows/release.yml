@@ -51,8 +51,8 @@ jobs:
           $notes = ".github/release-notes/$tag.md"
           if (Test-Path $notes) {
             Write-Host "使用发版说明 $notes"
-            gh release create $tag $zip --title "V5Sharp $tag" --notes-file $notes
+            gh release create $tag $zip --title "V5Sharp $($tag -replace '^v','')" --notes-file $notes
           } else {
             Write-Warning "没有 $notes，改用自动生成的变更列表"
-            gh release create $tag $zip --title "V5Sharp $tag" --generate-notes
+            gh release create $tag $zip --title "V5Sharp $($tag -replace '^v','')" --generate-notes
           }
