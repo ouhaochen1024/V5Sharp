@@ -38,6 +38,7 @@ jobs:
           if-no-files-found: error
 
       # 推 v* tag 时自动建 release 并挂上 zip
+      # 发版说明优先读 .github/release-notes/<tag>.md；文件不存在就退回自动生成的变更列表
       - name: 发布到 GitHub Release
         if: github.ref_type == 'tag'
         shell: pwsh
@@ -47,4 +48,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $zip = (Get-ChildItem dist/release/*.zip | Select-Object -First 1).FullName
           if (-not $zip) { throw '没找到 zip' }
-          gh release create $tag $zip --title "V5Sharp $tag" --generate-notes
+          $notes = ".github/release-notes/$tag.md"
+          if (Test-Path $notes) {
+            Write-Host "使用发版说明 $notes"
+            gh release create $tag $zip --title "V5Sharp $tag" --notes-file $notes
+          } else {
+            Write-Warning "没有 $notes，改用自动生成的变更列表"
+            gh release create $tag $zip --title "V5Sharp $tag" --generate-notes
+          }

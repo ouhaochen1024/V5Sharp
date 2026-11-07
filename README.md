@@ -136,6 +136,11 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
+发版说明（Release 正文）放在 `.github/release-notes/<tag>.md`，文件名必须和标签一致，
+例如 `v1.1.0.md` 对应 `v1.1.0`。没有这个文件时退回 GitHub 自动生成的变更列表。
+已经发出去的 Release 也可以随时到 Release 页面点铅笔图标改，改的是服务端那份，
+和仓库里的文件不会自动同步。
+
 
 ---
 
