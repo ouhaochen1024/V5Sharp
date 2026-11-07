@@ -1,0 +1,24 @@
+# 构建产物
+bin/
+obj/
+dist/
+
+# 原生编译中间文件（build-native.ps1 会清理，这里兜底）
+*.obj
+*.exp
+*.lib
+*.pdb
+*.ilk
+
+# 运行期产物
+Log/
+*.log
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# 逆向分析笔记（不随仓库发布）
+docs/
