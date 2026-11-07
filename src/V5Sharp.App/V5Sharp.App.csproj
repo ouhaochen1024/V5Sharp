@@ -17,6 +17,8 @@
     <FileVersion>1.1.0</FileVersion>
     <RootNamespace>V5Sharp.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe 自身的图标：资源管理器 / 桌面快捷方式 -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <OutputPath>$(MSBuildThisFileDirectory)..\..\dist\app\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
@@ -30,6 +32,11 @@
   <ItemGroup>
     <EmbeddedResource Include="Fonts\*.otf" />
     <None Include="Fonts\README.txt" />
+  </ItemGroup>
+
+  <!-- 窗口图标：任务栏与 Alt-Tab 用的是窗口图标（WM_SETICON），和 exe 图标是两码事 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="app.ico" />
   </ItemGroup>
 
   <!-- 把注入模块一起带到输出目录 -->

@@ -87,6 +87,7 @@ public sealed class MainForm : GlassForm
         SubtitleText = "通用多开 · 自动跟随新进程 · 32 / 64 位";
         TitleActionText = "官方";
         TitleActionClicked += (_, _) => OpenWebsite();
+        Icon = LoadAppIcon();
 
         ClientSize = new Size(1140, 840);
         MinimumSize = new Size(1040, 760);
@@ -403,6 +404,24 @@ public sealed class MainForm : GlassForm
 
         LayoutAll();
         Refresh();
+    }
+
+    /// <summary>
+    /// 窗口图标。任务栏和 Alt-Tab 读的是窗口图标（WM_SETICON），不会自动沿用 exe 里那张，
+    /// 所以必须自己设一次。这里把内嵌的 app.ico 整个交出去，系统会按当前 DPI 挑合适尺寸。
+    /// </summary>
+    private static Icon? LoadAppIcon()
+    {
+        try
+        {
+            using Stream? s = typeof(MainForm).Assembly.GetManifestResourceStream("app.ico");
+            if (s is null) return null;
+            return new Icon(s);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>打开官网</summary>
