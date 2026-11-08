@@ -1,7 +1,7 @@
 ﻿# 打包一个"自带运行时"的发布包
 #
 #   powershell -ExecutionPolicy Bypass -File build\publish.ps1
-#   powershell -ExecutionPolicy Bypass -File build\publish.ps1 -SkipNative -Version 1.1.0
+#   powershell -ExecutionPolicy Bypass -File build\publish.ps1 -SkipNative -Version 1.1.1
 #
 # 产出：dist\release\V5Sharp-<版本>-win-x64.zip
 #   ├─ V5多开器Pro.exe     自包含单文件（内含 .NET 8 运行时 + MiSans 字体）
@@ -87,6 +87,8 @@ StrongMode=0
 StrongSuffixes=
 GlobalHide=0
 RegFilter=
+PanelsOpen=0
+TopMost=0
 '@ | Set-Content -Path (Join-Path $stage 'v5sharp.ini') -Encoding utf8
 
 # 单文件发布仍可能留下 pdb / 多余的本地化目录，清掉

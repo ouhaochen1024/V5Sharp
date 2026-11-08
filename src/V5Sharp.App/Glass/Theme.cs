@@ -6,46 +6,57 @@ namespace V5Sharp.App;
 /// <summary>
 /// 配色、字体与 GDI+ 绘制辅助。
 ///
-/// 整体风格参照 Clash Verge：浅灰底 + 纯白卡片 + 单一蓝色强调色，
-/// 全屏只允许出现一种强调色，不再使用多色渐变。
-/// 唯一保留"液态玻璃"的地方是窗口最外圈的那道半透明边框。
+/// 视觉语言按 macOS / iOS 的浅色界面来做：中性灰底（不带蓝调）、纯白分组卡片、
+/// 单一系统蓝，靠字号与字重的层级而不是彩色装饰线来建立结构。
+/// 灰阶取 Apple 的 label / separator 体系，但整体压深一档，保证小字号中文可读。
 /// </summary>
 internal static class Theme
 {
     // ==================== 文字 ====================
-    public static readonly Color TextPrimary = Color.FromArgb(31, 35, 41);
-    public static readonly Color TextSecondary = Color.FromArgb(72, 82, 96);
-    public static readonly Color TextMuted = Color.FromArgb(118, 128, 142);
+    /// <summary>label：正文与标题</summary>
+    public static readonly Color TextPrimary = Color.FromArgb(29, 29, 31);
+    /// <summary>secondaryLabel：说明文字、表单标签</summary>
+    public static readonly Color TextSecondary = Color.FromArgb(74, 74, 79);
+    /// <summary>tertiaryLabel：表头、占位、次要信息</summary>
+    public static readonly Color TextMuted = Color.FromArgb(134, 134, 139);
     public static readonly Color TextOnAccent = Color.White;
 
-    // ==================== 强调色（只有一个蓝）====================
-    public static readonly Color Accent = Color.FromArgb(37, 99, 235);
-    public static readonly Color AccentHover = Color.FromArgb(29, 78, 216);
-    public static readonly Color AccentPress = Color.FromArgb(30, 64, 175);
-    /// <summary>浅蓝底：选中项、胶囊、按钮悬停</summary>
-    public static readonly Color AccentSoft = Color.FromArgb(239, 245, 255);
+    // ==================== 强调色（systemBlue）====================
+    public static readonly Color Accent = Color.FromArgb(0, 122, 255);
+    public static readonly Color AccentHover = Color.FromArgb(26, 140, 255);
+    public static readonly Color AccentPress = Color.FromArgb(0, 98, 204);
+    /// <summary>tinted 底：选中行、浅色胶囊（iOS 的二次按钮底色）</summary>
+    public static readonly Color AccentSoft = Color.FromArgb(235, 243, 255);
     /// <summary>浅蓝描边</summary>
-    public static readonly Color AccentLine = Color.FromArgb(198, 219, 255);
+    public static readonly Color AccentLine = Color.FromArgb(201, 224, 255);
 
-    public static readonly Color Success = Color.FromArgb(22, 163, 74);
-    public static readonly Color Danger = Color.FromArgb(220, 38, 38);
-    public static readonly Color DangerSoft = Color.FromArgb(254, 242, 242);
-    public static readonly Color Warn = Color.FromArgb(217, 119, 6);
+    public static readonly Color Success = Color.FromArgb(52, 199, 89);
+    /// <summary>绿色文字：systemGreen 当 9pt 小字太浅（白底上对比不足），压深一档</summary>
+    public static readonly Color SuccessText = Color.FromArgb(36, 138, 61);
+    public static readonly Color Danger = Color.FromArgb(255, 59, 48);
+    public static readonly Color DangerSoft = Color.FromArgb(255, 240, 239);
+    public static readonly Color Warn = Color.FromArgb(255, 149, 0);
+    /// <summary>橙色文字：同理压深</summary>
+    public static readonly Color WarnText = Color.FromArgb(194, 106, 0);
 
     // ==================== 表面 ====================
-    public static readonly Color WindowTop = Color.FromArgb(248, 250, 253);
-    public static readonly Color WindowBottom = Color.FromArgb(234, 238, 245);
+    /// <summary>窗口底：systemGray6 附近的中性灰，上下几乎持平，只留一丝明暗</summary>
+    public static readonly Color WindowTop = Color.FromArgb(247, 247, 249);
+    public static readonly Color WindowBottom = Color.FromArgb(237, 237, 241);
 
     public static readonly Color CardFill = Color.FromArgb(255, 255, 255);
-    public static readonly Color CardBorder = Color.FromArgb(231, 233, 238);
+    public static readonly Color CardBorder = Color.FromArgb(229, 229, 234);
     public static readonly Color FieldFill = Color.FromArgb(255, 255, 255);
-    public static readonly Color FieldBorder = Color.FromArgb(225, 229, 237);
-    public static readonly Color ControlHover = Color.FromArgb(244, 246, 250);
-    public static readonly Color DividerLine = Color.FromArgb(237, 240, 245);
+    /// <summary>输入框描边：separator 再深一点，白底上要能看出边界</summary>
+    public static readonly Color FieldBorder = Color.FromArgb(209, 209, 214);
+    public static readonly Color ControlHover = Color.FromArgb(242, 242, 247);
+    public static readonly Color DividerLine = Color.FromArgb(229, 229, 234);
 
-    /// <summary>浅色提示卡（小贴士）</summary>
-    public static readonly Color TintFill = Color.FromArgb(247, 249, 252);
-    public static readonly Color TintBorder = Color.FromArgb(232, 237, 245);
+    /// <summary>分组底（小贴士）：systemGray6，不用白底也不用蓝底</summary>
+    public static readonly Color TintFill = Color.FromArgb(242, 242, 247);
+    public static readonly Color TintBorder = Color.FromArgb(229, 229, 234);
+    /// <summary>日志面板底：比卡片灰一档，形成"内嵌"关系</summary>
+    public static readonly Color InsetFill = Color.FromArgb(246, 246, 248);
 
     // ==================== 字体 ====================
     public static readonly Font FontUI;
@@ -79,10 +90,10 @@ internal static class Theme
             // 已安装字体查找，内嵌字体不在其中，会静默退成 Microsoft Sans Serif。
             FontLog = new Font(ui, 9f, FontStyle.Regular, GraphicsUnit.Point);
 
-            // 标题用 Medium：比 Bold 轻一档，更接近 Clash / macOS 的标题观感
+            // 标题用 Medium：比 Bold 轻一档，更接近 macOS 的 headline
             FontFamily head = FontLoader.Medium ?? ui;
-            FontTitle = new Font(head, 11f, FontStyle.Regular, GraphicsUnit.Point);
-            FontHero = new Font(head, 12.5f, FontStyle.Regular, GraphicsUnit.Point);
+            FontTitle = new Font(head, 11.5f, FontStyle.Regular, GraphicsUnit.Point);
+            FontHero = new Font(head, 13f, FontStyle.Regular, GraphicsUnit.Point);
             FontMedium = new Font(head, 10f, FontStyle.Regular, GraphicsUnit.Point);
             FontSmallMedium = new Font(head, 9f, FontStyle.Regular, GraphicsUnit.Point);
             return;
@@ -127,7 +138,10 @@ internal static class Theme
         return path;
     }
 
-    /// <summary>白卡片：纯色填充 + 1px 细描边（Clash 的卡片就是这样，没有阴影没有渐变）</summary>
+    /// <summary>
+    /// 分组卡片：纯白填充 + 1px separator 描边。
+    /// Apple 的浅色卡片几乎不投影，层次靠"灰底上放白块"和一道极细的边界，不做渐变。
+    /// </summary>
     public static void PaintCard(Graphics g, RectangleF r, float radius, Color fill, Color border)
     {
         if (r.Width < 4 || r.Height < 4) return;
@@ -150,9 +164,9 @@ internal static class Theme
     }
 
     /// <summary>
-    /// 窗口最外圈：半透明液态玻璃边。
-    /// 由外到内：环形折射描边（上亮下暗）→ 极淡乳白"厚玻璃"→ 底部内阴影 → 顶部镜面高光。
-    /// 只作用在窗口边缘，不影响内部扁平卡片。
+    /// 窗口最外圈。原来的"液态玻璃"有折射圈、乳白透镜、底部重阴影，
+    /// 在浅色界面上会显出一种塑料感；Apple 的窗口是一块干净的圆角板，
+    /// 只有一道中性描边和顶边的一点光。这里按后者重做。
     /// </summary>
     public static void PaintWindowFrame(Graphics g, RectangleF r, float radius)
     {
@@ -163,29 +177,20 @@ internal static class Theme
 
         using var path = RoundRect(r, radius);
 
-        // 1) 玻璃厚度：沿边缘一圈很淡的乳白，向中心迅速消隐（透镜感）
-        using (var lens = new PathGradientBrush(path)
-        {
-            CenterColor = Color.FromArgb(0, 255, 255, 255),
-            SurroundColors = new[] { Color.FromArgb(96, 255, 255, 255) },
-            FocusScales = new PointF(0.93f, 0.93f)
-        })
-            g.FillPath(lens, path);
-
-        // 2) 底部内阴影：玻璃下沿压暗一点，"厚度"才立得住
-        float bh = Math.Min(r.Height * 0.30f, 64f);
-        var band = new RectangleF(r.X, r.Bottom - bh, r.Width, bh);
+        // 1) 底部极淡内阴影：只为了不让下沿"糊"进桌面，强度低到几乎察觉不到
+        float bh = Math.Min(r.Height * 0.20f, 40f);
+        var band = RectangleF.FromLTRB(r.X, r.Bottom - bh, r.Right, r.Bottom);
         using (var bp = RoundRect(band, radius))
         using (var bb = new LinearGradientBrush(
                    new RectangleF(band.X, band.Y, Math.Max(1, band.Width), Math.Max(1, band.Height)),
-                   Color.FromArgb(0, 78, 98, 130), Color.FromArgb(20, 78, 98, 130), 90f))
+                   Color.FromArgb(0, 60, 60, 67), Color.FromArgb(10, 60, 60, 67), 90f))
             g.FillPath(bb, bp);
 
-        // 3) 外沿：半透明冷色细线，界定窗口轮廓
-        using (var pen = new Pen(Color.FromArgb(112, 108, 126, 156), 1f))
+        // 2) 轮廓：一道中性灰细线，不做彩色折射
+        using (var pen = new Pen(Color.FromArgb(160, 209, 209, 214), 1f))
             g.DrawPath(pen, path);
 
-        // 4) 环形描边：上亮下暗，像光从上方穿过玻璃边缘
+        // 3) 顶边高光：光从上方落下，只亮上半圈，到腰线归零
         var ringRect = Deflate(r, 1f);
         using (var ring = RoundRect(ringRect, Math.Max(2f, radius - 1f)))
         using (var brush = new LinearGradientBrush(ringRect, Color.White, Color.White, 90f))
@@ -194,41 +199,14 @@ internal static class Theme
             {
                 Colors = new[]
                 {
-                    Color.FromArgb(236, 255, 255, 255),
-                    Color.FromArgb(150, 255, 255, 255),
-                    Color.FromArgb(110, 224, 233, 246),
-                    Color.FromArgb(176, 255, 255, 255)
-                },
-                Positions = new[] { 0f, 0.26f, 0.74f, 1f }
-            };
-            using var pen = new Pen(brush, 1.3f);
-            g.DrawPath(pen, ring);
-        }
-
-        // 5) 顶部镜面：两角弧线 + 顶边渐隐亮线
-        float d = Math.Max(8f, (radius - 1f) * 2f);
-        using (var pen = new Pen(Color.FromArgb(198, 255, 255, 255), 1.2f))
-        {
-            g.DrawArc(pen, new RectangleF(r.X + 1.5f, r.Y + 1.5f, d, d), 196, 66);
-            g.DrawArc(pen, new RectangleF(r.Right - d - 1.5f, r.Y + 1.5f, d, d), 278, 66);
-        }
-
-        float x0 = r.X + d * 0.5f;
-        float bw = Math.Max(6f, r.Width - d);
-        var hi = new RectangleF(x0, r.Y + 1.2f, bw, 1.4f);
-        using (var brush = new LinearGradientBrush(hi, Color.White, Color.White, 0f))
-        {
-            brush.InterpolationColors = new ColorBlend
-            {
-                Colors = new[]
-                {
-                    Color.FromArgb(0, 255, 255, 255),
                     Color.FromArgb(132, 255, 255, 255),
+                    Color.FromArgb(44, 255, 255, 255),
                     Color.FromArgb(0, 255, 255, 255)
                 },
-                Positions = new[] { 0f, 0.5f, 1f }
+                Positions = new[] { 0f, 0.42f, 1f }
             };
-            g.FillRectangle(brush, hi);
+            using var pen = new Pen(brush, 1f);
+            g.DrawPath(pen, ring);
         }
 
         g.SmoothingMode = old;

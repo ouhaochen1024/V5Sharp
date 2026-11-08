@@ -165,6 +165,8 @@ StrongMode=0                  ; 加强模式（放宽文件独占）
 StrongSuffixes=               ; 加强模式追加的文件后缀，留空用默认 *.lock;*.pid;*.mutex
 GlobalHide=0                  ; 全局隐藏
 RegFilter=                    ; 注册表隔离关键词，多个用分号分隔
+PanelsOpen=0                  ; 是否展开右侧「运行实例 / 运行日志」，0 = 只显示配置区
+TopMost=0                     ; 窗口是否置顶（标题栏右上角的图钉按钮）
 ```
 
 ### 工作目录很关键

@@ -25,7 +25,7 @@ public class GlassForm : Form
     private const int HTBOTTOMRIGHT = 17;
 
     private const int ResizeBorder = 6;
-    private const float FrameRadius = 14f;
+    private const float FrameRadius = 12f;
 
     [DllImport("user32.dll")]
     private static extern bool ReleaseCapture();
@@ -39,7 +39,7 @@ public class GlassForm : Form
     private Bitmap? _wallpaper;
     /// <summary>当前背景位图对应的高度（背景只按高度变化，宽度靠横向拉伸）</summary>
     private int _wallpaperH = -1;
-    private Rectangle _btnMin, _btnMax, _btnClose, _btnAction;
+    private Rectangle _btnMin, _btnPin, _btnClose, _btnAction;
     private int _hoverButton = -1;
     private bool _hoverAction;
 
@@ -97,6 +97,21 @@ public class GlassForm : Form
 
     /// <summary>标题栏胶囊被点击时触发</summary>
     public event EventHandler? TitleActionClicked;
+
+    /// <summary>是否置顶：标题栏右上角的图钉按钮控制</summary>
+    public bool Pinned
+    {
+        get => TopMost;
+        set
+        {
+            if (TopMost == value) return;
+            TopMost = value;
+            PinChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>置顶状态变化后触发（用于写回配置）</summary>
+    public event EventHandler? PinChanged;
 
     /// <summary>按显示器 DPI 缩放设计尺寸</summary>
     protected int S(int v) => (int)Math.Round(v * DeviceDpi / 96f);
@@ -241,21 +256,20 @@ public class GlassForm : Form
 
         int textX = mark.Right + S(10);
         int titleW = Math.Max(S(40), Width - textX - S(220));
+        bool hasSub = !string.IsNullOrEmpty(SubtitleText);
+        // 只有一行标题时垂直居中，不然标题会贴着上沿、下面空一条
+        int titleY = hasSub ? S(9) : (TitleBarHeight - S(22)) / 2;
         Theme.DrawText(g, TitleText, Theme.FontTitle, Theme.TextPrimary,
-                       new Rectangle(textX, S(9), titleW, S(22)));
-        if (!string.IsNullOrEmpty(SubtitleText))
+                       new Rectangle(textX, titleY, titleW, S(22)));
+        if (hasSub)
             Theme.DrawText(g, SubtitleText, Theme.FontSmall, Theme.TextMuted,
                            new Rectangle(textX + 1, S(31), titleW, S(18)));
 
         DrawTitleAction(g);
 
         DrawChromeButton(g, _btnMin, 0);
-        DrawChromeButton(g, _btnMax, 1);
+        DrawChromeButton(g, _btnPin, 1);
         DrawChromeButton(g, _btnClose, 2);
-
-        // 标题栏与内容区之间的细线
-        using (var pen = new Pen(Theme.DividerLine, 1f))
-            g.DrawLine(pen, 0, TitleBarHeight - 0.5f, Width, TitleBarHeight - 0.5f);
     }
 
     /// <summary>
@@ -285,8 +299,8 @@ public class GlassForm : Form
         int y = (TitleBarHeight - size) / 2;
         int right = Width - S(18);
         _btnClose = new Rectangle(right - size, y, size, size);
-        _btnMax = new Rectangle(_btnClose.Left - size - S(6), y, size, size);
-        _btnMin = new Rectangle(_btnMax.Left - size - S(6), y, size, size);
+        _btnPin = new Rectangle(_btnClose.Left - size - S(6), y, size, size);
+        _btnMin = new Rectangle(_btnPin.Left - size - S(6), y, size, size);
 
         // 标题栏胶囊入口：放在最小化按钮左侧，宽度按文字自适应
         if (!string.IsNullOrEmpty(TitleActionText))
@@ -312,18 +326,14 @@ public class GlassForm : Form
         var r = _btnAction;
         bool hover = _hoverAction;
 
-        var fill = hover ? Color.FromArgb(226, 238, 255) : Theme.AccentSoft;
-        var line = hover ? Color.FromArgb(166, 197, 255) : Theme.AccentLine;
+        var fill = hover ? Color.FromArgb(219, 233, 255) : Theme.AccentSoft;
 
+        // 纯 tinted 胶囊，不描边：Apple 的二次按钮靠底色区分层级，不靠一圈线
         using (var p = Theme.RoundRect(r, r.Height / 2f))
         using (var b = new SolidBrush(fill))
             g.FillPath(b, p);
-        using (var p = Theme.RoundRect(new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1),
-                                       r.Height / 2f))
-        using (var pen = new Pen(line, 1f))
-            g.DrawPath(pen, p);
 
-        var fg = hover ? Theme.AccentHover : Theme.Accent;
+        var fg = hover ? Theme.AccentPress : Theme.Accent;
 
         // 地球小图标
         float cx = r.Left + 15, cy = r.Y + r.Height / 2f, rad = 5.6f;
@@ -343,16 +353,27 @@ public class GlassForm : Form
     {
         bool hover = _hoverButton == kind;
         bool close = kind == 2;
+        bool pinOn = kind == 1 && TopMost;
 
-        if (hover)
+        if (close || !pinOn)
         {
-            using var p = Theme.RoundRect(r, 7);
-            using var b = new SolidBrush(close ? Color.FromArgb(232, 17, 35) : Color.FromArgb(240, 242, 246));
+            if (hover)
+            {
+                using var p = Theme.RoundRect(r, 6);
+                using var b = new SolidBrush(close ? Theme.Danger : Theme.ControlHover);
+                g.FillPath(b, p);
+            }
+        }
+        else if (hover)
+        {
+            // 置顶态：悬停时用淡蓝底，和"已激活"呼应
+            using var p = Theme.RoundRect(r, 6);
+            using var b = new SolidBrush(Theme.AccentSoft);
             g.FillPath(b, p);
         }
 
         var color = hover && close ? Color.White : Theme.TextSecondary;
-        using var pen = new Pen(color, 1.3f);
+        using var pen = new Pen(color, 1.2f);
 
         int cx = r.X + r.Width / 2;
         int cy = r.Y + r.Height / 2;
@@ -363,15 +384,7 @@ public class GlassForm : Form
                 g.DrawLine(pen, cx - 5, cy, cx + 5, cy);
                 break;
             case 1:
-                if (WindowState == FormWindowState.Maximized)
-                {
-                    g.DrawRectangle(pen, cx - 5, cy - 4, 8, 8);
-                    g.DrawRectangle(pen, cx - 3, cy - 6, 8, 8);
-                }
-                else
-                {
-                    g.DrawRectangle(pen, cx - 5, cy - 5, 10, 10);
-                }
+                DrawPin(g, cx, cy);
                 break;
             default:
                 g.DrawLine(pen, cx - 4, cy - 4, cx + 4, cy + 4);
@@ -380,13 +393,33 @@ public class GlassForm : Form
         }
     }
 
+    /// <summary>
+    /// 标题栏的「置顶」图钉：未置顶是灰色描边，置顶后帽子和针都填成强调色。
+    /// </summary>
+    private void DrawPin(Graphics g, int cx, int cy)
+    {
+        bool on = TopMost;
+        var color = on ? Theme.Accent : Theme.TextSecondary;
+
+        using var pen = new Pen(color, 1.2f);
+        using var brush = new SolidBrush(color);
+
+        if (on) g.FillRectangle(brush, cx - 4, cy - 5, 8, 6);
+
+        g.DrawLine(pen, cx - 5, cy - 5, cx + 5, cy - 5);   // 帽顶
+        g.DrawLine(pen, cx - 4, cy - 5, cx - 4, cy + 1);   // 左壁
+        g.DrawLine(pen, cx + 4, cy - 5, cx + 4, cy + 1);   // 右壁
+        g.DrawLine(pen, cx - 4, cy + 1, cx + 4, cy + 1);   // 底座
+        g.DrawLine(pen, cx, cy + 1, cx, cy + 6);           // 针
+    }
+
     // ==================== 鼠标交互 ====================
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         int hover = -1;
         if (_btnClose.Contains(e.Location)) hover = 2;
-        else if (_btnMax.Contains(e.Location)) hover = 1;
+        else if (_btnPin.Contains(e.Location)) hover = 1;
         else if (_btnMin.Contains(e.Location)) hover = 0;
 
         bool overAction = !_btnAction.IsEmpty && _btnAction.Contains(e.Location);
@@ -437,11 +470,11 @@ public class GlassForm : Form
         {
             if (_btnClose.Contains(e.Location)) { Close(); return; }
             if (_btnMin.Contains(e.Location)) { WindowState = FormWindowState.Minimized; return; }
-            if (_btnMax.Contains(e.Location))
+            if (_btnPin.Contains(e.Location))
             {
-                WindowState = WindowState == FormWindowState.Maximized
-                    ? FormWindowState.Normal
-                    : FormWindowState.Maximized;
+                Pinned = !Pinned;
+                Invalidate(new Rectangle(_btnPin.X - 4, _btnPin.Y - 4,
+                                         _btnPin.Width + 8, _btnPin.Height + 8));
                 return;
             }
             if (!_btnAction.IsEmpty && _btnAction.Contains(e.Location))

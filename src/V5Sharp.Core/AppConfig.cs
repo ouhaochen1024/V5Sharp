@@ -26,6 +26,12 @@ public sealed class AppConfig
     /// <summary>注册表隔离关键词（; 分隔），留空不隔离</summary>
     public string RegFilter { get; set; } = "";
 
+    /// <summary>右侧「运行实例 / 运行日志」面板是否展开（默认收起，只留左侧配置）</summary>
+    public bool PanelsOpen { get; set; }
+
+    /// <summary>窗口是否置顶</summary>
+    public bool TopMost { get; set; }
+
     public static string DefaultPath => Path.Combine(AppContext.BaseDirectory, "v5sharp.ini");
 
     public static AppConfig Load(string path)
@@ -75,6 +81,13 @@ public sealed class AppConfig
                 case "regfilter":
                 case "reg":
                     cfg.RegFilter = val; break;
+                case "panelsopen":
+                case "showpanels":
+                    cfg.PanelsOpen = Flag(val); break;
+                case "topmost":
+                case "alwaysontop":
+                case "pin":
+                    cfg.TopMost = Flag(val); break;
             }
         }
         return cfg;
@@ -101,6 +114,8 @@ public sealed class AppConfig
         sb.AppendLine($"GlobalHide={(GlobalHide ? 1 : 0)}");
         if (!string.IsNullOrWhiteSpace(RegFilter))
             sb.AppendLine($"RegFilter={RegFilter}");
+        sb.AppendLine($"PanelsOpen={(PanelsOpen ? 1 : 0)}");
+        sb.AppendLine($"TopMost={(TopMost ? 1 : 0)}");
         sb.AppendLine();
         sb.AppendLine("[V5]");
         sb.AppendLine("Title=V5多开器Pro");

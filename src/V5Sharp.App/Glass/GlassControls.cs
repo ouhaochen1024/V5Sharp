@@ -157,12 +157,11 @@ public sealed class GlassButton : Control
 
         if (!Enabled)
         {
+            // 系统灰底 + 灰字，不描边 —— Apple 的 disabled 按钮就是一块无边界灰块
             using var dp = Theme.RoundRect(rect, corner);
-            using var db = new SolidBrush(Color.FromArgb(243, 245, 248));
+            using var db = new SolidBrush(Color.FromArgb(242, 242, 247));
             g.FillPath(db, dp);
-            using var dpen = new Pen(Color.FromArgb(233, 236, 241), 1f);
-            g.DrawPath(dpen, dp);
-            Theme.DrawText(g, Text, Font, Color.FromArgb(168, 176, 188), ClientRectangle, center);
+            Theme.DrawText(g, Text, Font, Color.FromArgb(174, 174, 178), ClientRectangle, center);
             return;
         }
 
@@ -170,7 +169,7 @@ public sealed class GlassButton : Control
         {
             case Kind.Primary:
                 {
-                    // 纯色：默认 Accent，悬停过渡到 AccentHover，按下再深一档
+                    // 实心 systemBlue：悬停提亮一档，按下压深。不加内高光 —— 苹果的实心按钮没有边
                     var fill = Theme.Blend(Theme.AccentHover, Theme.Accent, _hover);
                     fill = Theme.Blend(Theme.AccentPress, fill, _press);
 
@@ -178,32 +177,20 @@ public sealed class GlassButton : Control
                     using (var b = new SolidBrush(fill))
                         g.FillPath(b, path);
 
-                    // 上沿一道极淡的白色内高光：让实心块有"厚度"，不再是平涂色块
-                    if (corner > 2f)
-                    {
-                        using var inner = Theme.RoundRect(Theme.Deflate(rect, 1f), Math.Max(1f, corner - 1f));
-                        using var hp = new Pen(Color.FromArgb(34 + (int)(30 * _hover), 255, 255, 255), 1f);
-                        g.DrawPath(hp, inner);
-                    }
-
                     Theme.DrawText(g, Text, Font, Theme.TextOnAccent, ClientRectangle, center);
                     break;
                 }
 
             case Kind.Soft:
                 {
-                    // 标题栏「官方」胶囊的配色：浅蓝底 + 浅蓝细边 + 蓝字
-                    var fill = Theme.Blend(Color.FromArgb(224, 236, 255), Theme.AccentSoft, _hover);
-                    var line = Theme.Blend(Color.FromArgb(160, 194, 255), Theme.AccentLine, _hover);
-                    var fg = _hover > 0.5f ? Theme.AccentHover : Theme.Accent;
-
+                    // tinted：浅蓝底 + 蓝字，无描边
+                    var fill = Theme.Blend(Color.FromArgb(219, 233, 255), Theme.AccentSoft, _hover);
                     using (var path = Theme.RoundRect(rect, corner))
-                    {
-                        using (var b = new SolidBrush(fill)) g.FillPath(b, path);
-                        using (var pen = new Pen(line, 1f)) g.DrawPath(pen, path);
-                    }
+                    using (var b = new SolidBrush(fill))
+                        g.FillPath(b, path);
 
-                    Theme.DrawText(g, Text, Font, fg, ClientRectangle, center);
+                    Theme.DrawText(g, Text, Font,
+                        Theme.Blend(Theme.AccentPress, Theme.Accent, _hover * 0.55f), ClientRectangle, center);
                     break;
                 }
 
@@ -212,31 +199,30 @@ public sealed class GlassButton : Control
                     if (_hover > 0.02f)
                     {
                         using var path = Theme.RoundRect(rect, corner);
-                        using var b = new SolidBrush(Color.FromArgb((int)(255 * _hover), 238, 241, 246));
+                        using var b = new SolidBrush(Color.FromArgb((int)(255 * _hover), Theme.ControlHover));
                         g.FillPath(b, path);
                     }
                     Theme.DrawText(g, Text, Font,
-                        Theme.Blend(Theme.Accent, Theme.TextSecondary, _hover), ClientRectangle, center);
+                        Theme.Blend(Theme.AccentPress, Theme.Accent, _hover * 0.5f), ClientRectangle, center);
                     break;
                 }
 
             case Kind.Danger:
                 {
+                    // destructive：白底红字，悬停淡红底
                     using var path = Theme.RoundRect(rect, corner);
-                    using (var b = new SolidBrush(Theme.Blend(Color.FromArgb(255, 236, 236), Color.White, _hover)))
+                    using (var b = new SolidBrush(Theme.Blend(Theme.DangerSoft, Color.White, _hover)))
                         g.FillPath(b, path);
-                    using var pen = new Pen(Theme.Blend(Color.FromArgb(240, 180, 180), Theme.FieldBorder, 1 - _hover), 1f);
-                    g.DrawPath(pen, path);
-                    Theme.DrawText(g, Text, Font,
-                        Theme.Blend(Theme.Danger, Color.FromArgb(120, 40, 40), 1 - _hover), ClientRectangle, center);
+                    using (var pen = new Pen(Theme.Blend(Color.FromArgb(255, 190, 186), Theme.FieldBorder, _hover), 1f))
+                        g.DrawPath(pen, path);
+                    Theme.DrawText(g, Text, Font, Theme.Danger, ClientRectangle, center);
                     break;
                 }
 
-            default:   // Secondary
+            default:   // Secondary：白底 + separator 边 + 正文色，二层按钮的默认形态
                 {
-                    var fill = Theme.Blend(Theme.AccentSoft, Color.White, _hover);
-                    var edge = Theme.Blend(Theme.AccentLine, Theme.FieldBorder, _hover);
-                    var fg = Theme.Blend(Theme.Accent, Color.FromArgb(52, 62, 78), _hover);
+                    var fill = Theme.Blend(Theme.ControlHover, Color.White, _hover);
+                    var edge = Theme.Blend(Color.FromArgb(190, 190, 196), Theme.FieldBorder, _hover);
 
                     using (var path = Theme.RoundRect(rect, corner))
                     {
@@ -244,7 +230,7 @@ public sealed class GlassButton : Control
                         using (var pen = new Pen(edge, 1f)) g.DrawPath(pen, path);
                     }
 
-                    Theme.DrawText(g, Text, Font, fg, ClientRectangle, center);
+                    Theme.DrawText(g, Text, Font, Theme.TextPrimary, ClientRectangle, center);
                     break;
                 }
         }
@@ -325,11 +311,19 @@ public sealed class GlassInput : Control
         var r = new RectangleF(0.5f, 0.5f, Width - 1, Height - 1);
         if (r.Width < 4 || r.Height < 4) return;
 
-        const float radius = 8f;
+        const float radius = 10f;
 
         using (var path = Theme.RoundRect(r, radius))
         using (var brush = new SolidBrush(Theme.FieldFill))
             g.FillPath(brush, path);
+
+        // 焦点态：内侧一圈很淡的蓝光 + 1px 蓝边，代替原来只有边框变色的做法
+        if (_focused)
+        {
+            using var glow = Theme.RoundRect(Theme.Deflate(r, 1.6f), Math.Max(1f, radius - 1f));
+            using var gpen = new Pen(Color.FromArgb(44, Theme.Accent), 2.4f);
+            g.DrawPath(gpen, glow);
+        }
 
         using (var path = Theme.RoundRect(r, radius))
         using (var pen = new Pen(_focused ? Theme.Accent : Theme.FieldBorder, 1f))
@@ -401,7 +395,8 @@ public sealed class GlassToggle : Control
         if (track.Width < 8 || track.Height < 8) return;
 
         float radius = track.Height / 2f;
-        var off = Color.FromArgb(214, 220, 230);
+        // 关闭态用 systemGray5，开启态是 macOS 偏好的 systemBlue
+        var off = Color.FromArgb(233, 233, 235);
         var trackColor = Theme.Blend(Theme.Accent, off, _pos);
 
         using (var path = Theme.RoundRect(track, radius))
@@ -415,13 +410,14 @@ public sealed class GlassToggle : Control
         float knobX = track.X + 2 + travel * _pos;
         var knob = new RectangleF(knobX, track.Y + 2, knobW, knobH);
 
+        // 滑块底下的极淡投影：白色圆形压在彩底上，没有影子会显得"贴纸一样"浮不上来
+        using (var sp = Theme.RoundRect(new RectangleF(knob.X, knob.Y + 0.8f, knob.Width, knob.Height), knobH / 2f))
+        using (var sb = new SolidBrush(Color.FromArgb(26, 0, 0, 0)))
+            g.FillPath(sb, sp);
+
         using (var kp = Theme.RoundRect(knob, knobH / 2f))
         using (var kb = new SolidBrush(Color.White))
             g.FillPath(kb, kp);
-
-        using (var kp = Theme.RoundRect(knob, knobH / 2f))
-        using (var pen = new Pen(Color.FromArgb(28, 20, 32, 48), 1f))
-            g.DrawPath(pen, kp);
     }
 
     protected override void Dispose(bool disposing)
@@ -435,7 +431,7 @@ public sealed class GlassToggle : Control
 public sealed class InstanceList : Control
 {
     private const int HeaderH = 32;
-    private const int RowH = 58;
+    private const int RowH = 62;
 
     private IReadOnlyList<Instance> _items = Array.Empty<Instance>();
     private int _scroll;
@@ -578,24 +574,22 @@ public sealed class InstanceList : Control
 
         int cy = row.Y + row.Height / 2;
 
-        // 状态圆点
+        // 状态圆点：一颗实心小圆，不加外圈光晕 —— 那层光会让整行看起来像告警灯
         var dotColor = inst.IsChasing ? Theme.Warn
                      : inst.IsRunning ? Theme.Success
-                     : Color.FromArgb(190, 196, 206);
-        using (var b = new SolidBrush(Color.FromArgb(inst.IsRunning ? 46 : 22, dotColor)))
-            g.FillEllipse(b, 14, cy - 7, 14, 14);
+                     : Color.FromArgb(199, 199, 204);
         using (var b = new SolidBrush(dotColor))
-            g.FillEllipse(b, 18, cy - 3, 6, 6);
+            g.FillEllipse(b, 15, cy - 4, 8, 8);
 
         Theme.DrawText(g, inst.Pid.ToString(), Theme.FontMono, Theme.TextPrimary,
                        new Rectangle(c.Pid, row.Y, 74, row.Height));
 
-        // 组号胶囊
+        // 组号：中性灰胶囊，不用蓝底（蓝色留给真正可点的东西）
         var pill = new Rectangle(c.Group, cy - 11, 66, 22);
-        using (var pp = Theme.RoundRect(pill, 6))
-        using (var pb = new SolidBrush(Theme.AccentSoft))
+        using (var pp = Theme.RoundRect(pill, 11))
+        using (var pb = new SolidBrush(Theme.ControlHover))
             g.FillPath(pb, pp);
-        Theme.DrawText(g, inst.GroupId.ToString(), Theme.FontSmall, Theme.Accent,
+        Theme.DrawText(g, inst.GroupId.ToString(), Theme.FontSmall, Theme.TextSecondary,
                        pill, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
 
         Theme.DrawText(g, inst.StartTime.ToString("HH:mm:ss"), Theme.FontUI, Theme.TextSecondary,
@@ -603,12 +597,12 @@ public sealed class InstanceList : Control
 
         if (inst.IsChasing)
         {
-            Theme.DrawText(g, "接替中", Theme.FontUI, Theme.Warn,
+            Theme.DrawText(g, "接替中", Theme.FontUI, Theme.WarnText,
                            new Rectangle(c.State, row.Y, c.StateWidth, row.Height));
         }
         else if (inst.IsRunning)
         {
-            Theme.DrawText(g, "运行中", Theme.FontUI, Theme.Success,
+            Theme.DrawText(g, "运行中", Theme.FontUI, Theme.SuccessText,
                            new Rectangle(c.State, row.Y, c.StateWidth, row.Height));
         }
         else
@@ -623,11 +617,11 @@ public sealed class InstanceList : Control
 
         string name = string.IsNullOrEmpty(inst.ExeName) ? inst.ExePath : inst.ExeName;
         int fw = c.FileWidth(row.Right);
-        var nameRect = new Rectangle(c.File, row.Y + 10, fw, 20);
-        Theme.DrawTextEllipsis(g, name, Theme.FontBold,
+        var nameRect = new Rectangle(c.File, row.Y + 12, fw, 20);
+        Theme.DrawTextEllipsis(g, name, Theme.FontMedium,
             inst.IsRunning ? Theme.TextPrimary : Theme.TextSecondary, nameRect);
 
-        var pathRect = new Rectangle(c.File, row.Y + 31, fw, 18);
+        var pathRect = new Rectangle(c.File, row.Y + 33, fw, 18);
         Theme.DrawTextEllipsis(g, inst.ExePath, Theme.FontSmall, Theme.TextMuted, pathRect);
     }
 
@@ -692,7 +686,7 @@ public sealed class TipsBlock : Control
         int inner = Math.Max(24, width - PaddingX * 2);
         int h = PaddingY * 2;
 
-        h += Theme.MeasureHeight(Title, TitleFont) + 4;
+        h += Theme.MeasureHeight(Title, TitleFont) + 6;
 
         int textW = Math.Max(16, inner - BulletIndent);
         foreach (var it in _items)
@@ -706,19 +700,17 @@ public sealed class TipsBlock : Control
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
-        Theme.PaintCard(g, new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 10, Theme.TintFill, Theme.TintBorder);
+        Theme.PaintCard(g, new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 10f, Theme.TintFill, Theme.TintBorder);
 
         int x = PaddingX;
         int y = PaddingY;
         int inner = Width - PaddingX * 2;
 
-        // 标题 + 强调圆点
+        // 标题：不加彩色圆点，用字重和颜色区分层级就够了（彩色小圆是网页提示框的标志）
         int titleH = Theme.MeasureHeight(Title, TitleFont);
-        using (var b = new SolidBrush(Accent))
-            g.FillEllipse(b, x, y + titleH / 2 - 3, 6, 6);
-        TextRenderer.DrawText(g, Title, TitleFont, new Point(x + BulletIndent - 3, y),
+        TextRenderer.DrawText(g, Title, TitleFont, new Point(x, y),
                               Theme.TextSecondary, TextFormatFlags.NoPrefix);
-        y += titleH + 4;
+        y += titleH + 6;
 
         // 逐条要点
         int textW = Math.Max(16, inner - BulletIndent);
@@ -726,10 +718,10 @@ public sealed class TipsBlock : Control
         {
             y += ItemGap;
             int ih = Theme.MeasureWrappedHeight(it, ItemFont, textW);
-            using (var b = new SolidBrush(Color.FromArgb(150, Accent)))
-                g.FillEllipse(b, x + 2, y + ih / 2 - 1, 4, 4);
+            using (var b = new SolidBrush(Color.FromArgb(199, 199, 204)))
+                g.FillEllipse(b, x + 3, y + ih / 2f - 1.5f, 3f, 3f);
             TextRenderer.DrawText(g, it, ItemFont, new Rectangle(x + BulletIndent, y, textW, ih),
-                                  Color.FromArgb(68, 78, 92), TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
+                                  Theme.TextSecondary, TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
             y += ih;
         }
     }

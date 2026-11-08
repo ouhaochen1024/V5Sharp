@@ -5,11 +5,18 @@ namespace V5Sharp.App;
 
 public sealed class MainForm : GlassForm
 {
-    private static readonly Color LogBack = Color.FromArgb(248, 250, 253);
-    private static readonly Color LogText = Color.FromArgb(56, 66, 82);
+    // 日志区是卡片里的一块"内嵌"面板：底色比卡片灰一档，文字用近黑的中性灰
+    private static readonly Color LogBack = Color.FromArgb(246, 246, 248);
+    private static readonly Color LogText = Color.FromArgb(58, 58, 60);
 
     /// <summary>日志最多保留的行数：TextBox 越攒越慢，超过就按队列裁掉最旧的</summary>
     private const int MaxLogLines = 400;
+
+    /// <summary>收起右侧面板时的左卡片宽度</summary>
+    private const int CollapsedCardW = 430;
+
+    /// <summary>收起态的窗口宽度：左卡片 + 两侧留白</summary>
+    private int CollapsedClientW => S(CollapsedCardW) + S(18) * 2;
 
     private readonly InstanceManager _manager = new();
     private readonly AppConfig _config;
@@ -55,6 +62,7 @@ public sealed class MainForm : GlassForm
     private readonly GlassButton _btnPlus = new();
     private readonly GlassButton _btnClearLog = new();
     private readonly GlassButton _btnAdvanced = new();
+    private readonly GlassButton _btnPanels = new();
 
     private readonly GlassToggle _tgLog = new();
     private readonly GlassToggle _tgStrong = new();
@@ -71,8 +79,16 @@ public sealed class MainForm : GlassForm
     private bool _busy;
     /// <summary>高级选项是否展开（注册表关键词等，普通用户不需要）</summary>
     private bool _advancedOpen;
+    /// <summary>右侧「运行实例 / 运行日志」面板是否展开；默认收起，只留左侧配置区</summary>
+    private bool _panelsOpen;
+    /// <summary>展开态使用的窗口宽度：收起前记下来，展开时恢复</summary>
+    private int _expandedWidth = 1140;
+    /// <summary>展开态使用的窗口高度：收起时会按内容缩到最小，展开要能还原</summary>
+    private int _expandedHeight;   // 0 = 还没记录过，用内容高度
     /// <summary>正在按内容抬高窗口，避免布局回调重入</summary>
     private bool _growing;
+    /// <summary>正在按内容收紧窗口高度，避免布局回调重入</summary>
+    private bool _fittingHeight;
 
     /// <summary>左卡片内容真正需要的高度（超出时自动抬高窗口下限）</summary>
     private int _requiredCardH;
@@ -82,19 +98,22 @@ public sealed class MainForm : GlassForm
     public MainForm()
     {
         _config = AppConfig.Load(_configPath);
+        _panelsOpen = _config.PanelsOpen;
 
         TitleText = "V5多开器Pro";
-        SubtitleText = "通用多开 · 自动跟随新进程 · 32 / 64 位";
         TitleActionText = "官方";
         TitleActionClicked += (_, _) => OpenWebsite();
         Icon = LoadAppIcon();
+        TopMost = _config.TopMost;   // 直接设，别走 Pinned 的 setter（那时 UI 还没建好）
+        PinChanged += (_, _) => SaveConfig();
 
-        ClientSize = new Size(1140, 840);
-        MinimumSize = new Size(1040, 760);
+        ClientSize = new Size(_panelsOpen ? 1140 : CollapsedClientW, 840);
+        MinimumSize = _panelsOpen ? new Size(1040, 760) : new Size(S(400), 760);
 
         BuildUi();
         ApplyConfig();
         LayoutAll();
+        ApplyPanelState();   // 首帧按内容定尺寸，别留默认 840 那一截空白
 
         AllowDrop = true;
         DragEnter += (_, e) =>
@@ -132,9 +151,9 @@ public sealed class MainForm : GlassForm
 
     private void BuildUi()
     {
-        _cardForm.Radius = 12;
-        _cardList.Radius = 12;
-        _cardLog.Radius = 12;
+        _cardForm.Radius = 14;
+        _cardList.Radius = 14;
+        _cardLog.Radius = 14;
 
         StyleLabel(_lblFormTitle, "启动配置", Theme.FontHero, Theme.TextPrimary);
 
@@ -184,13 +203,20 @@ public sealed class MainForm : GlassForm
         _btnAdvanced.Font = Theme.FontSmall;
         _btnAdvanced.Click += (_, _) => ToggleAdvanced();
 
+        // 右侧面板的展开入口：收起点在它身上，展开后变成"收起"
+        _btnPanels.Variant = GlassButton.Kind.Soft;
+        _btnPanels.Font = Theme.FontSmallMedium;
+        _btnPanels.Click += (_, _) => TogglePanels();
+
         _btnMinus.Text = "−";
         _btnMinus.Variant = GlassButton.Kind.Secondary;
+        _btnMinus.Radius = 10f;      // 步进器不用胶囊：macOS 的 stepper 是小圆角方块
         _btnMinus.Font = new Font(Theme.FontMedium.FontFamily, 12f, FontStyle.Regular);
         _btnMinus.Click += (_, _) => { _count = Math.Max(1, _count - 1); _lblCountValue.Text = _count.ToString(); };
 
         _btnPlus.Text = "+";
         _btnPlus.Variant = GlassButton.Kind.Secondary;
+        _btnPlus.Radius = 10f;
         _btnPlus.Font = new Font(Theme.FontMedium.FontFamily, 12f, FontStyle.Regular);
         _btnPlus.Click += (_, _) => { _count = Math.Min(32, _count + 1); _lblCountValue.Text = _count.ToString(); };
 
@@ -216,16 +242,13 @@ public sealed class MainForm : GlassForm
         _lblReg.Visible = false;
         _inRegFilter.Visible = false;
 
-        // 标题下的强调短条 + 贴士上方的分隔线
+        // 标题下的强调短条：Apple 的版面不用彩色短线做标题装饰，层级靠字号与留白，
+        // 这里直接停用（后面布局也不再给它留位置）
         foreach (var bar in new[] { _barForm, _barList, _barLog })
-        {
-            bar.Tint = Theme.Accent;
-            bar.Fade = false;
-            bar.Rounded = true;
-            bar.Height = S(3);
-        }
+            bar.Visible = false;
         _divider.Tint = Theme.DividerLine;
         _divider.Fade = false;
+        _divider.Visible = false;
 
         _cardForm.Controls.AddRange(new Control[]
         {
@@ -237,7 +260,7 @@ public sealed class MainForm : GlassForm
             _lblCount, _btnMinus, _lblCountValue, _btnPlus, _lblLogSwitch, _tgLog,
             _lblStrong, _tgStrong, _lblGlobalHide, _tgGlobalHide,
             _lblReg, _inRegFilter,
-            _btnLaunch, _btnAdd, _btnKill, _divider, _tips
+            _btnLaunch, _btnAdd, _btnKill, _btnPanels, _divider, _tips
         });
 
         // ---- 实例列表 ----
@@ -263,7 +286,7 @@ public sealed class MainForm : GlassForm
         };
 
         _logShell.Radius = 10;
-        _logShell.Fill = Color.FromArgb(248, 250, 253);
+        _logShell.Fill = LogBack;
         _logShell.Border = Theme.CardBorder;
 
         _log.Multiline = true;
@@ -317,42 +340,80 @@ public sealed class MainForm : GlassForm
         int pad = S(18);
         int top = TitleBarHeight + S(12);
         int bottom = ClientSize.Height - pad;
-        int gap = S(14);
-
-        // 左卡片宽度随窗口伸缩，并夹在合理区间内；右侧始终保留足够操作空间
-        int availW = ClientSize.Width - pad * 2 - gap;
-        int leftW = (int)Math.Round(availW * 0.37);
-        leftW = Math.Clamp(leftW, S(340), S(430));
-        leftW = Math.Min(leftW, Math.Max(S(300), availW - S(340)));
-        leftW = Math.Max(leftW, S(300));
-
-        int rightX = pad + leftW + gap;
-        int rightW = Math.Max(S(320), ClientSize.Width - rightX - pad);
+        int gap = S(16);
         int rightH = bottom - top;
 
+        int leftW;
+        if (_panelsOpen)
+        {
+            // 左卡片宽度随窗口伸缩，并夹在合理区间内；右侧始终保留足够操作空间
+            int availW = ClientSize.Width - pad * 2 - gap;
+            leftW = (int)Math.Round(availW * 0.37);
+            leftW = Math.Clamp(leftW, S(340), S(430));
+            leftW = Math.Min(leftW, Math.Max(S(300), availW - S(340)));
+            leftW = Math.Max(leftW, S(300));
+
+            int rightX = pad + leftW + gap;
+            int rightW = Math.Max(S(320), ClientSize.Width - rightX - pad);
+
+            // 右侧：实例列表 + 运行日志，日志高度按比例分配并夹取区间
+            int logH = (int)Math.Round(rightH * 0.34);
+            logH = Math.Clamp(logH, S(170), S(300));
+            int listH = rightH - logH - gap;
+            if (listH < S(190)) { listH = S(190); logH = Math.Max(S(140), rightH - listH - gap); }
+
+            _cardList.SetBounds(rightX, top, rightW, listH);
+            _cardLog.SetBounds(rightX, top + listH + gap, rightW, rightH - listH - gap);
+
+            LayoutListCard();
+            LayoutLogCard();
+        }
+        else
+        {
+            // 收起态：右侧面板隐藏，左卡片吃满整个可用宽度（窗口此时本来就很窄）
+            leftW = Math.Max(S(300), ClientSize.Width - pad * 2);
+        }
+
         _cardForm.SetBounds(pad, top, leftW, rightH);
-
-        // 右侧：实例列表 + 运行日志，日志高度按比例分配并夹取区间
-        int logH = (int)Math.Round(rightH * 0.34);
-        logH = Math.Clamp(logH, S(170), S(300));
-        int listH = rightH - logH - gap;
-        if (listH < S(190)) { listH = S(190); logH = Math.Max(S(140), rightH - listH - gap); }
-
-        _cardList.SetBounds(rightX, top, rightW, listH);
-        _cardLog.SetBounds(rightX, top + listH + gap, rightW, rightH - listH - gap);
-
         LayoutFormCard();
-        LayoutListCard();
-        LayoutLogCard();
+
+        int needClientH = TitleBarHeight + S(12) + _requiredCardH + pad + 2;
 
         // 内容放不下时抬高窗口下限，保证小贴士永不被裁切
         if (_requiredCardH > rightH)
         {
-            int needClientH = TitleBarHeight + S(12) + _requiredCardH + pad + 2;
             if (needClientH > MinimumSize.Height) RequestMinHeight(needClientH);
             // 展开高级选项后内容可能超出当前窗口，按需把窗口撑高
             GrowToFit(needClientH);
         }
+        else if (!_panelsOpen)
+        {
+            // 收起态：窗口高度跟着内容走，否则按钮和小贴士之间会空出一大片
+            FitCollapsedHeight(needClientH);
+        }
+    }
+
+    /// <summary>收起态按内容收紧窗口高度（延后执行，避免布局里改尺寸重入）</summary>
+    private void FitCollapsedHeight(int clientH)
+    {
+        if (_fittingHeight || !IsHandleCreated) return;
+        if (WindowState != FormWindowState.Normal) return;
+        if (Math.Abs(ClientSize.Height - clientH) <= S(2)) return;
+
+        _fittingHeight = true;
+        BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                if (_panelsOpen || WindowState != FormWindowState.Normal) return;
+                if (Math.Abs(ClientSize.Height - clientH) > S(2))
+                    ClientSize = new Size(ClientSize.Width, clientH);
+            }
+            finally
+            {
+                _fittingHeight = false;
+            }
+        }));
     }
 
     /// <summary>延后抬高窗口下限，避免在布局回调里直接改尺寸造成递归</summary>
@@ -406,6 +467,56 @@ public sealed class MainForm : GlassForm
         Refresh();
     }
 
+    /// <summary>展开 / 收起右侧的「运行实例 + 运行日志」</summary>
+    private void TogglePanels()
+    {
+        // 收起前把展开态的尺寸记下来（此时窗口还是宽的那个）
+        if (_panelsOpen)
+        {
+            if (ClientSize.Width >= S(900)) _expandedWidth = ClientSize.Width;
+            if (ClientSize.Height >= S(600)) _expandedHeight = ClientSize.Height;
+        }
+
+        _panelsOpen = !_panelsOpen;
+        ApplyPanelState();
+    }
+
+    /// <summary>
+    /// 同步面板可见性、窗口尺寸。
+    /// 收起时窗口一起收窄，否则右侧会留出一大片空白；展开时恢复收起前的尺寸。
+    /// </summary>
+    private void ApplyPanelState()
+    {
+        _cardList.Visible = _panelsOpen;
+        _cardLog.Visible = _panelsOpen;
+        SyncPanelChrome();
+
+        MinimumSize = new Size(_panelsOpen ? S(1040) : S(400), MinimumSize.Height);
+
+        // 高度：展开态优先用收起前的尺寸（用户可能拉高过），没有就按内容高度，
+        // 否则窗口比内容高，小贴士贴底后按钮和贴士之间会空出一大块。
+        int contentH = TitleBarHeight + S(12) + _requiredCardH + S(18) + 2;
+        int targetW = _panelsOpen
+            ? Math.Max(_expandedWidth, Math.Max(ClientSize.Width, S(1040)))
+            : CollapsedClientW;
+        int targetH = _panelsOpen && _expandedHeight > 0 ? _expandedHeight : contentH;
+
+        // 内容算得比下限还矮时把下限降下来，否则窗口会被下限顶高、下面留白
+        if (MinimumSize.Height > targetH) MinimumSize = new Size(MinimumSize.Width, targetH);
+        if (ClientSize.Width != targetW || ClientSize.Height != targetH)
+            ClientSize = new Size(targetW, targetH);
+
+        LayoutAll();
+        if (_panelsOpen) RefreshList();   // 收起期间暂停刷新，展开时立刻补一次
+        Invalidate();
+    }
+
+    /// <summary>展开 / 收起按钮的文案</summary>
+    private void SyncPanelChrome()
+    {
+        _btnPanels.Text = _panelsOpen ? "收起运行面板" : "展开运行面板";
+    }
+
     /// <summary>
     /// 窗口图标。任务栏和 Alt-Tab 读的是窗口图标（WM_SETICON），不会自动沿用 exe 里那张，
     /// 所以必须自己设一次。这里把内嵌的 app.ico 整个交出去，系统会按当前 DPI 挑合适尺寸。
@@ -456,9 +567,7 @@ public sealed class MainForm : GlassForm
         int advH = S(24);
         _btnAdvanced.SetBounds(p + w - advW, y + (titleH - advH) / 2, advW, advH);
         _lblFormTitle.SetBounds(p, y, Math.Max(S(60), w - advW - S(10)), titleH);
-        y += titleH + S(8);
-        _barForm.SetBounds(p, y, S(20), S(3));
-        y += S(3) + S(12);
+        y += titleH + S(14);
 
         // 输入行：标签在上、输入框在下、右侧可选操作按钮
         y = LayoutFieldRow(_lblExe, _inExe, _btnBrowseExe, p, y, w);
@@ -501,13 +610,18 @@ public sealed class MainForm : GlassForm
         y += S(14);
 
         // 主按钮
-        _btnLaunch.SetBounds(p, y, w, S(38));
-        y += S(38) + S(9);
+        _btnLaunch.SetBounds(p, y, w, S(40));
+        y += S(40) + S(10);
 
         // 次按钮
         int half = (w - S(10)) / 2;
-        _btnAdd.SetBounds(p, y, half, S(34));
-        _btnKill.SetBounds(p + half + S(10), y, half, S(34));
+        _btnAdd.SetBounds(p, y, half, S(36));
+        _btnKill.SetBounds(p + half + S(10), y, half, S(36));
+        y += S(36) + S(12);
+
+        // 右侧面板的展开 / 收起：收起时它是唯一入口，做得像"显示更多"的居中胶囊
+        int panelBtnW = Math.Min(w, Math.Max(S(150), FitButtonWidth(_btnPanels)));
+        _btnPanels.SetBounds(p + (w - panelBtnW) / 2, y, panelBtnW, S(34));
         y += S(34);
 
         // 分隔线 + 小贴士贴底排布：窗口变高时空白留在按钮下方，不会把贴士顶飞
@@ -516,8 +630,8 @@ public sealed class MainForm : GlassForm
         _divider.SetBounds(p, tipsTop - S(10), w, 1);
         _tips.SetBounds(p, tipsTop, w, tipsH);
 
-        // 记录左卡片真正需要的高度，用于动态抬高窗口下限
-        _requiredCardH = tipsTop + tipsH + p;
+        // 内容自然排布需要的高度（不贴底）：用于抬高窗口下限，收起态也靠它收紧窗口高度
+        _requiredCardH = y + S(18) + tipsH + p;
     }
 
     /// <summary>标签在上、输入框在下的一行；右侧按钮宽度按文字自适应</summary>
@@ -633,9 +747,8 @@ public sealed class MainForm : GlassForm
 
         _lblListTitle.SetBounds(p, S(14), S(200), titleH);
         _lblStat.SetBounds(_cardList.Width - p - S(180), S(14), S(180), titleH);
-        _barList.SetBounds(p, S(14) + titleH + S(9), S(20), S(3));
 
-        int listTop = S(14) + titleH + S(18);
+        int listTop = S(14) + titleH + S(10);
         _list.SetBounds(S(10), listTop, _cardList.Width - S(20), Math.Max(S(60), _cardList.Height - listTop - S(10)));
     }
 
@@ -646,9 +759,8 @@ public sealed class MainForm : GlassForm
 
         _lblLogTitle.SetBounds(p, S(12), S(200), titleH);
         _btnClearLog.SetBounds(_cardLog.Width - p - S(52), S(9), S(52), S(24));
-        _barLog.SetBounds(p, S(12) + titleH + S(9), S(20), S(3));
 
-        int shellTop = S(12) + titleH + S(16);
+        int shellTop = S(12) + titleH + S(8);
         _logShell.SetBounds(S(12), shellTop, Math.Max(S(60), _cardLog.Width - S(24)),
                             Math.Max(S(60), _cardLog.Height - shellTop - S(12)));
 
@@ -681,6 +793,13 @@ public sealed class MainForm : GlassForm
             _inRegFilter.Visible = true;
             _btnAdvanced.Text = "收起";
         }
+
+        // 右侧面板的展开状态：默认收起，只留左侧配置区
+        _cardList.Visible = _panelsOpen;
+        _cardLog.Visible = _panelsOpen;
+        SyncPanelChrome();
+
+        TopMost = _config.TopMost;   // 句柄创建后再落一次，确保置顶真正生效
     }
 
     private void SaveConfig()
@@ -694,6 +813,8 @@ public sealed class MainForm : GlassForm
         _config.StrongMode = _tgStrong.Checked;
         _config.GlobalHide = _tgGlobalHide.Checked;
         _config.RegFilter = _inRegFilter.Text.Trim();
+        _config.PanelsOpen = _panelsOpen;
+        _config.TopMost = TopMost;
         try { _config.Save(_configPath); } catch { /* 忽略 */ }
     }
 
@@ -850,7 +971,7 @@ public sealed class MainForm : GlassForm
         int count = _count;   // 启动期间用户可能还在点 +/-
         SetBusy(true);
         AppendLog($"开始启动 {count} 个实例：{Path.GetFileName(opt.ExePath)}");
-        AppendLog($"  工作目录：{opt.WorkingDirectory ?? Path.GetDirectoryName(opt.ExePath)}");
+        AppendLog($"工作目录：{opt.WorkingDirectory ?? Path.GetDirectoryName(opt.ExePath)}");
 
         List<Instance> started = new();
         try
@@ -925,13 +1046,14 @@ public sealed class MainForm : GlassForm
     private void RefreshList()
     {
         if (IsDisposed || Disposing) return;
+        if (!_panelsOpen) return;   // 面板收起时列表不可见，省掉每秒一次的枚举
         _manager.Refresh();
         var list = _manager.Instances;
         _list.SetItems(list);
 
         int running = list.Count(i => i.IsRunning);
         _lblStat.Text = list.Count == 0 ? "" : $"运行中 {running} / 共 {list.Count}";
-        _lblStat.ForeColor = running > 0 ? Theme.Success : Theme.TextMuted;
+        _lblStat.ForeColor = running > 0 ? Theme.SuccessText : Theme.TextMuted;
     }
 
     private void AppendLog(string text)
