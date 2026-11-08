@@ -13,8 +13,8 @@
     <Product>V5多开器Pro</Product>
     <AssemblyTitle>V5多开器Pro</AssemblyTitle>
     <Company>www.yysdjbd.cn</Company>
-    <Version>1.1.0</Version>
-    <FileVersion>1.1.0</FileVersion>
+    <Version>1.1.1</Version>
+    <FileVersion>1.1.1</FileVersion>
     <RootNamespace>V5Sharp.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- exe 自身的图标：资源管理器 / 桌面快捷方式 -->
