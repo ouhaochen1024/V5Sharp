@@ -72,6 +72,18 @@ public static class ProcTree
         catch { return null; }
     }
 
+    /// <summary>
+    /// 进程退出时刻（UTC）；拿不到返回 null。
+    /// 用来让"接替宽限窗口"从进程真正退出算起，而不是从轮询发现它退出算起。
+    /// </summary>
+    public static DateTime? ExitedAt(IntPtr handle)
+    {
+        if (!Win32.GetProcessTimes(handle, out _, out long exit, out _, out _)) return null;
+        if (exit <= 0) return null;
+        try { return DateTime.FromFileTimeUtc(exit); }
+        catch { return null; }
+    }
+
     /// <summary>进程完整镜像路径</summary>
     public static string? ImagePath(IntPtr handle)
     {

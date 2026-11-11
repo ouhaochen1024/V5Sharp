@@ -71,12 +71,16 @@ public sealed class Instance : IDisposable
         // 入口进程没了：先尝试"接替"
         if (TryAdopt(claimed)) return;
 
-        // 拉起的客户端可能晚几百毫秒才出现，给一个宽限窗口再判死
+        // 拉起的客户端可能晚几百毫秒才出现，给一个宽限窗口再判死。
+        // 窗口起点用进程"真正退出"的时刻，而不是第一次轮询到它退出的时刻：
+        // 面板收起、窗口最小化、系统休眠都会让轮询延后很久，按发现时刻计时的话，
+        // 一个早就退出的实例会被重新塞进一整段"接替中"。
         if (_graceUntil is null)
         {
-            _graceUntil = DateTime.UtcNow + ChaseWindow;
-            PendingNote = $"实例组 {GroupId}：入口进程 PID={Pid} 已退出，等待它拉起的客户端进程…";
-            return;
+            DateTime exitAt = ProcTree.ExitedAt(ProcessHandle) ?? DateTime.UtcNow;
+            _graceUntil = exitAt + ChaseWindow;
+            if (DateTime.UtcNow < _graceUntil.Value)
+                PendingNote = $"实例组 {GroupId}：入口进程 PID={Pid} 已退出，等待它拉起的客户端进程…";
         }
         if (DateTime.UtcNow < _graceUntil.Value) return;
 

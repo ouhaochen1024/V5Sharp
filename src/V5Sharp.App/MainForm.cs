@@ -507,7 +507,7 @@ public sealed class MainForm : GlassForm
             ClientSize = new Size(targetW, targetH);
 
         LayoutAll();
-        if (_panelsOpen) RefreshList();   // 收起期间暂停刷新，展开时立刻补一次
+        if (_panelsOpen) RefreshList();   // 状态一直在后台跟踪，展开时立刻把最新状态画出来
         Invalidate();
     }
 
@@ -1046,8 +1046,17 @@ public sealed class MainForm : GlassForm
     private void RefreshList()
     {
         if (IsDisposed || Disposing) return;
-        if (!_panelsOpen) return;   // 面板收起时列表不可见，省掉每秒一次的枚举
+
+        // 状态跟踪必须一直跑，和面板是否可见无关。Instance 的状态机（进程退出判定、
+        // 接替宽限窗口、接替到客户端进程）全靠这一秒一次的 Refresh 推进；收起面板时
+        // 若连它一起停掉，实例会一直冻结在"运行中"，直到展开那一刻才开始计时——
+        // 明明早就退出的实例先显示"接替中"，再等满宽限窗口才变"已退出"。
+        // 进程存活时 Refresh 只是一次 GetExitCodeProcess，不做进程快照枚举；
+        // 只有检测到退出后才会短暂枚举 Job / 子进程去找接替者，开销可以忽略。
         _manager.Refresh();
+
+        if (!_panelsOpen) return;   // 列表不可见，只跳过绘制
+
         var list = _manager.Instances;
         _list.SetItems(list);
 
